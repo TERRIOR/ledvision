@@ -13,6 +13,7 @@
 #include <QDesktopWidget>
 #include <qwidget.h>
 #include <signaldialog.h>
+#include "ledclassify.h"
 #include <qglobal.h>
 #include <windows.h>
 #include "CameraApi.h"
@@ -42,6 +43,9 @@ public:
     bool caminit(string str,int signalnode);
     //释放相机
     void camuninit(int i);
+    //更新模板图片列表
+    void refreshpiclist();
+
     ///相机变量
     int		m_hCamera[2];
     BYTE*	m_pFrameBuffer[2];
@@ -49,7 +53,14 @@ public:
     HANDLE  m_hDispThread[2];//图像抓取线程的句柄
     BOOL    m_bExit[2];//用来通知图像抓取线程结束
     tSdkFrameHead   m_sFrInfo[2];//用于保存当前图像帧的帧头信息
-
+    //在回调函数用到的变量
+    ledclassify m_ledc;
+    Mat m_workmat1;
+    Mat m_workmat2;
+    //图像设置，分为两种不同的信号源
+    void imgsetting(int i, int j);
+    void showres(bool i);
+    void UpdateGUI(QLabel *ql, Mat *imgshow);
 private slots:
     void on_pushButton_min_clicked();
 
@@ -61,6 +72,20 @@ private slots:
 
     void receivesignal(int i,int j,string m,string n);
 
+    void on_pushButton_run_toggled(bool checked);
+
+    void on_pushButton_file_clicked();
+
+    void on_tableWidgetfile_cellDoubleClicked(int row, int column);
+
+    void on_pushButton_setimg_clicked();
+
+    void on_pushButton_saveimg_clicked();
+
+    void on_pushButton_takeimg_clicked();
+
+    void on_pushButton_save_clicked();
+
 private:
     Ui::MainWindow *ui;
     QRect location;
@@ -70,10 +95,16 @@ private:
     int m_isignal2camnode=-1;
     int m_isignalsource1=0;
     int m_isignalsource2=0;
+
     string m_scamname1="";
     string m_scamname2="";
     bool max;
 
+    Mat m_fileimg;
+
+    int m_fileimgnode;
+    QString m_filename;
+    QStringList m_qstrlist;
 };
 
 #endif // MAINWINDOW_H

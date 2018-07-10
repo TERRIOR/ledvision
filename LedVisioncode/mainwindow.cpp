@@ -6,6 +6,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+//    ui->pushButton_2->setEnabled(false);
+//    ui->pushButton_3->setEnabled(false);
     initform();
 }
 
@@ -29,17 +31,17 @@ void MainWindow::initform()
         this->setStyleSheet(qss);
         file.close();
     }
-//    ui->tableWidgettool->setColumnCount(3);
-//    QStringList header;
-//    header<<tr("Name")<<tr("Index")<<tr("Id");
-//    ui->tableWidgettool->setHorizontalHeaderLabels(header);
-//    ui->tableWidgettool->horizontalHeader()->setDefaultSectionSize(220/3);
-//    ui->tableWidgettool->setFrameShape(QFrame::NoFrame); //设置无边框
-//    ui->tableWidgettool->setShowGrid(true); //显示格子线
-//    ui->tableWidgettool->verticalHeader()->setVisible(false); //设置垂直头不可见
-//    ui->tableWidgettool->setSelectionMode(QAbstractItemView::ExtendedSelection);
-//    ui->tableWidgettool->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    //ui->tableWidgettool->horizontalHeader()->setStretchLastSection(true); //设置充满表宽度
+    ui->tableWidgetfile->setColumnCount(1);
+    QStringList header;
+    header<<tr("FileName");
+    ui->tableWidgetfile->setHorizontalHeaderLabels(header);
+    ui->tableWidgetfile->horizontalHeader()->setDefaultSectionSize(220);
+    ui->tableWidgetfile->setFrameShape(QFrame::NoFrame); //设置无边框
+    ui->tableWidgetfile->setShowGrid(true); //显示格子线
+    ui->tableWidgetfile->verticalHeader()->setVisible(false); //设置垂直头不可见
+    ui->tableWidgetfile->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ui->tableWidgetfile->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
     showMaximized();
 }
 
@@ -77,7 +79,7 @@ void MainWindow::on_pushButton_signal_clicked()
 
 void __stdcall GrabImageCallback0(CameraHandle hCamera, BYTE *pFrameBuffer, tSdkFrameHead* pFrameHead,PVOID pContext)
 {
-    cout<<"callback0"<<endl;
+    cout<<"callback0"<<" first step"<<endl;
     CameraSdkStatus status;
     IplImage *g_iplImage1 = NULL;
     MainWindow *pThis = (MainWindow*)pContext;
@@ -103,10 +105,13 @@ void __stdcall GrabImageCallback0(CameraHandle hCamera, BYTE *pFrameBuffer, tSdk
         }
         g_iplImage1 = cvCreateImageHeader(cvSize(pFrameHead->iWidth,pFrameHead->iHeight),IPL_DEPTH_8U,pThis->m_sFrInfo[0].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3);
         cvSetData(g_iplImage1,pThis->m_pFrameBuffer[0],pFrameHead->iWidth*(pThis->m_sFrInfo[0].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3));
-        Mat matcam1=Mat(g_iplImage1);
+        pThis->m_workmat1=Mat(g_iplImage1);
 
-        if(!matcam1.empty())
-            imshow("cam1",matcam1);
+        if(!pThis->m_workmat1.empty())
+
+            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat1));
+
+            //imshow("cam1",matcam1);
         waitKey(1);
     }
 
@@ -116,13 +121,16 @@ void __stdcall GrabImageCallback0(CameraHandle hCamera, BYTE *pFrameBuffer, tSdk
 
 void __stdcall GrabImageCallback1(CameraHandle hCamera, BYTE *pFrameBuffer, tSdkFrameHead* pFrameHead,PVOID pContext)
 {
-    cout<<"callback1"<<endl;
+    cout<<"callback1"<<" second step"<<endl;
     CameraSdkStatus status;
     IplImage *g_iplImage2 = NULL;
     MainWindow *pThis = (MainWindow*)pContext;
-    //将获得的原始数据转换成RGB格式的数据，同时经过ISP模块，对图像进行降噪，边沿提升，颜色校正等处理。
-    //我公司大部分型号的相机，原始数据都是Bayer格式的
 
+
+    //TODO:添加判断逻辑代码，一工位检测是坏的led就不需要进行第二工位的检测了，虽然检测了也没关系，再商量
+//    if(){
+//        return;
+//    }
     status = CameraImageProcess(hCamera, pFrameBuffer, pThis->m_pFrameBuffer[1],pFrameHead);
 
     //分辨率改变了，则刷新背景
@@ -142,14 +150,22 @@ void __stdcall GrabImageCallback1(CameraHandle hCamera, BYTE *pFrameBuffer, tSdk
         }
         g_iplImage2 = cvCreateImageHeader(cvSize(pFrameHead->iWidth,pFrameHead->iHeight),IPL_DEPTH_8U,pThis->m_sFrInfo[1].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3);
         cvSetData(g_iplImage2,pThis->m_pFrameBuffer[1],pFrameHead->iWidth*(pThis->m_sFrInfo[1].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3));
-        Mat matcam2=Mat(g_iplImage2);
-        if(!matcam2.empty())
-            imshow("cam2",matcam2);
+        pThis->m_workmat2=Mat(g_iplImage2);
+        if(!pThis->m_workmat2.empty())
+            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat2));
+            //imshow("cam2",matcam2);
         waitKey(1);
     }
 
     memcpy(&pThis->m_sFrInfo[1],pFrameHead,sizeof(tSdkFrameHead));
 
+}
+void MainWindow::showres(bool i){
+    if(i){
+        ui->label_result->setText("OK");
+    }else{
+        ui->label_result->setText("NG");
+    }
 }
 bool MainWindow::caminit(string str,int signalnode){
     int                     iCameraCounts = 4;
@@ -221,6 +237,27 @@ void MainWindow::camuninit(int i){
         break;
     }
 }
+
+void MainWindow::refreshpiclist()
+{
+    ui->tableWidgetfile->clearContents();
+    ui->tableWidgetfile->setRowCount(0);
+    int size=m_qstrlist.size();
+    int i;
+    //first save the num of tools
+    for(i=0;i<size;i++){
+        int row_count = ui->tableWidgetfile->rowCount(); //获取表单行数
+        ui->tableWidgetfile->insertRow(row_count); //插入新行
+        QTableWidgetItem *item = new QTableWidgetItem();
+
+        //设置对应的图标、文件名称、最后更新时间、对应的类型、文件大小
+        item->setText(m_qstrlist.at(row_count));
+        ui->tableWidgetfile->setItem(row_count, 0, item);
+
+    }
+}
+
+
 void MainWindow::receivesignal(int i,int j,string m,string n)
 {
 
@@ -307,3 +344,170 @@ void MainWindow::receivesignal(int i,int j,string m,string n)
 //    return true;
 //}
 
+
+void MainWindow::on_pushButton_run_toggled(bool checked)
+{
+    if(checked){
+        //打开定时器定时更新
+
+        ui->pushButton_run->setText(QString::fromLocal8Bit("运行中"));
+
+    }else{
+
+        ui->pushButton_run->setText(QString::fromLocal8Bit("开始运行"));
+
+    }
+}
+
+
+void MainWindow::on_pushButton_file_clicked()
+{
+    //TODO:添加获取图片文件名，并刷新列表，显示图片名称，并保存当前地址
+    m_filename = QFileDialog::getExistingDirectory(this,
+            tr("Load"),""); //选择路径
+    cout<<m_filename.toStdString()<<endl;
+    m_qstrlist=getFileNames(m_filename);
+    cout<<m_qstrlist.size()<<endl;
+    refreshpiclist();
+    //mat=imread(m_filename.toStdString()+string((const char *)m_qstrlist.at(m_index).toLocal8Bit()));
+//    QFile ExpandData(filename);
+//    if(ExpandData.open(QIODevice::ReadWrite))
+//    {
+//        /*文本输出流，用于保存数据*/
+//        int i;
+//        int size;
+//        QTextStream in(&ExpandData);
+//        in>>size;
+//        for(i=0;i<size;i++){
+//            loadtool(in);
+//        }
+//        ExpandData.close();
+//    }
+}
+
+void MainWindow::on_tableWidgetfile_cellDoubleClicked(int row, int column)
+{
+    m_fileimgnode=row;
+    cout<<string((const char *)m_qstrlist.at(row).toLocal8Bit())<<endl;
+    m_fileimg=imread(m_filename.toStdString()+"/"+string((const char *)m_qstrlist.at(row).toLocal8Bit()));
+    //imshow("c",m_fileimg);
+    if(ui->radioButton->isChecked()){
+        cout<<"工位2"<<endl;
+        UpdateGUI(ui->lblOriginal,&m_fileimg);
+        showres(m_ledc.ledback(m_fileimg));
+
+    }else if(ui->radioButton_2->isChecked()){
+        cout<<"工位1"<<endl;
+        UpdateGUI(ui->lblOriginal_2,&m_fileimg);
+        showres(m_ledc.ledfront(m_fileimg));
+    }
+}
+
+void MainWindow::imgsetting(int i,int j)
+{
+    switch (i) {
+    case 0:
+
+        break;
+    case 1:
+        char str[]="Setting";
+        CameraCreateSettingPage(m_hCamera[j],NULL,str,NULL,NULL,0);//"通知SDK内部建该相机的属性页面";
+        CameraShowSettingPage(m_hCamera[j],TRUE);//TRUE显示相机配置界面。FALSE则隐藏。
+        break;
+
+    }
+}
+
+void MainWindow::on_pushButton_setimg_clicked()
+{
+    if(ui->radioButton->isChecked()){
+        cout<<"工位2"<<endl;
+        imgsetting(m_isignalsource2,m_isignal2camnode);
+
+    }else if(ui->radioButton_2->isChecked()){
+        cout<<"工位1"<<endl;
+        imgsetting(m_isignalsource1,m_isignal1camnode);
+    }
+}
+
+void MainWindow::on_pushButton_saveimg_clicked()
+{
+    //TODO:创建文件夹，把图片保存
+    if(ui->radioButton->isChecked()){
+        cout<<"工位2"<<endl;
+    }else if(ui->radioButton_2->isChecked()){
+        cout<<"工位1"<<endl;
+    }
+}
+
+void MainWindow::UpdateGUI(QLabel *ql,Mat *imgshow)
+{
+    //更新显示
+    //refreshmat();//test
+    Mat temp;
+    if(imgshow!=NULL&&!imgshow->empty()){//先判断指针
+        imgshow->copyTo(temp);
+        if(!temp.empty()){
+            float scale,scale1,scale2;
+            int matrows=temp.rows;
+            int lablerows=ql->height();
+            int matcols=temp.cols;
+            int lablecols=ql->width();
+
+            scale1=(float)lablerows/matrows;
+            scale2=(float)lablecols/matcols;
+            if(scale1<scale2){
+                scale=scale1;
+            }else{
+                scale=scale2;
+            }
+            scalemat(temp,scale);
+            QImage qimg=Mat2QImage(temp);
+            ql->setPixmap(QPixmap::fromImage(qimg));
+        }
+
+    }
+
+}
+void MainWindow::on_pushButton_takeimg_clicked()
+{
+    //TODO:添加单拍代码
+    //文件夹形式：使用列表选中的图片运行
+    //相机形式：软件触发拍照
+    if(ui->radioButton->isChecked()){
+        cout<<"工位2"<<endl;
+        switch (m_isignal1camnode) {
+        case 0:
+            //获取列表图像 运行结果
+            //工位2检测背面
+            UpdateGUI(ui->lblOriginal,&m_fileimg);
+            showres(m_ledc.ledback(m_fileimg));
+            break;
+        case 1:
+            //软触发
+            CameraSoftTrigger(m_hCamera[m_isignalsource1]);
+            break;
+
+        }
+    }else if(ui->radioButton_2->isChecked()){
+        cout<<"工位1"<<endl;
+        switch (m_isignal1camnode) {
+        case 0:
+            //获取列表图像 运行结果
+            //工位1检测前面
+            UpdateGUI(ui->lblOriginal_2,&m_fileimg);
+            showres(m_ledc.ledfront(m_fileimg));
+            break;
+        case 1:
+            //软触发
+            CameraSoftTrigger(m_hCamera[m_isignalsource1]);
+            break;
+
+        }
+    }
+}
+
+void MainWindow::on_pushButton_save_clicked()
+{
+
+}

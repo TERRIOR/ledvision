@@ -11,7 +11,7 @@ void getimgroi(Mat& mat,const float scale){
     int offsetx=(cols-scale*cols)/2;
     mat=mat(Rect(offsetx,offsety,cols*scale,rows*scale));
 }
-void imrotate(Mat& img, Mat& newIm, double angle,Point2f pt,Size size){
+void imrotate(Mat& img, Mat& newIm, double angle,Point2f pt){
     Mat r = getRotationMatrix2D(pt,angle,1.0);
     warpAffine(img,newIm,r,Size(img.cols,img.rows));
 }

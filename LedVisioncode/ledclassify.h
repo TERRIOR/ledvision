@@ -26,19 +26,14 @@ using namespace cv;
 class ledclassify: public QObject
 {
     Q_OBJECT
+
 public:
-    explicit ledclassify(QObject *parent = 0);
+    ledclassify();
     bool ledfront(Mat &ledmat,float scale=0.5);
     bool ledback(Mat &ledmat,float scale=0.5);
+    bool ledload();
+    bool ledsave();
     void initparam();
-signals:
-    void sendsecondres(bool);
-    void sendfirstres(bool);
-    void sendthirdres(bool);
-private:
-    bool m_front_jiao;
-    bool m_front_ya;
-
     thresholdparam m_width;
     thresholdparam m_hight;
     thresholdparam m_ratio;
@@ -48,6 +43,36 @@ private:
     thresholdparam m_minlength;
     thresholdparam m_offset;
     thresholdparam m_radius;
+    bool calfront(Mat &mat, float scale);
+    bool calback(Mat ledmat, float scale);
+    void getroi(Mat &ledmat, Rect *rcV,Mat *underV);
+    bool calcornor(Mat &cornormat, Rect &bd);
+signals:
+    /**
+     * @brief sendsuccess
+     * 发送正确信号
+     * 0：工位1
+     * 1：工位2（最终结果）
+     */
+    void sendsuccess(int);
+    /**
+     * @brief senderror
+     * 发送错误信号，给主程序进行记录
+     * param int：
+     * 0：空白 没有零件
+     * 1：其他异物
+     * 2：压烂
+     * 3：多少胶
+     * 4：异物
+     * 5：引脚
+     * 6：其他问题正面
+     * 7：其他问题反面
+     * 8：放反，回炉
+     */
+    void senderror(int);
+private:
+    bool m_front_jiao;
+    bool m_front_ya;
 
 };
 

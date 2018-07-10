@@ -15,7 +15,7 @@ using namespace cv;
 
 void scalemat(Mat &mat,float scale);
 void getimgroi(Mat& mat,const float scale);
-void imrotate(Mat& img, Mat& newIm, double angle,Point2f pt,Size size);
+void imrotate(Mat& img, Mat& newIm, double angle,Point2f pt);
 double Entropy(Mat img);
 double getfuza(Mat &img);
 void imshowMany(const std::string& _winName, const vector<Mat>& _imgs);

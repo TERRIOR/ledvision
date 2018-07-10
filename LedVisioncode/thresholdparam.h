@@ -1,7 +1,7 @@
 ﻿#ifndef THRESHOLDPARAM_H
 #define THRESHOLDPARAM_H
-
-
+#include <iostream>
+using namespace std;
 class thresholdparam
 {
 public:
@@ -16,7 +16,7 @@ public:
 
     float up() const;
     void setUp(float up);
-
+    void showallparam();
 private:
     float m_now=0;
     float m_down=-1000;

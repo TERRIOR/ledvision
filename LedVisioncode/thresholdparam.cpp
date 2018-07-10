@@ -18,7 +18,14 @@ void thresholdparam::setdownup(float down, float up)
 
 bool thresholdparam::inrange()
 {
-    return m_now>m_down&&m_now<m_up;
+    if(m_now>m_down&&m_now<m_up){
+        return true;
+    }else{
+        cout<<"fail"<<endl;
+        showallparam();
+        return false;
+    }
+
 }
 
 float thresholdparam::now() const
@@ -50,4 +57,11 @@ float thresholdparam::up() const
 void thresholdparam::setUp(float up)
 {
     m_up = up;
+}
+
+void thresholdparam::showallparam()
+{
+    cout<<m_down<<endl;
+    cout<<m_now<<endl;
+    cout<<m_up<<endl;
 }
