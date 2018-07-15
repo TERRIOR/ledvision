@@ -17,6 +17,10 @@ public:
     float up() const;
     void setUp(float up);
     void showallparam();
+    thresholdparam& operator =(const int datanow){
+        m_now=datanow;
+        return *this;
+    }
 private:
     float m_now=0;
     float m_down=-1000;

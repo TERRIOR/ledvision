@@ -22,7 +22,17 @@
 #include <QObject>
 using namespace std;
 using namespace cv;
-
+enum error_type{
+    errornoled,
+    errorothersth,
+    errorbroken,
+    errorglue,
+    errorfmater,
+    errorfoot,
+    errorotherfront,
+    errorotherback,
+    returndeal
+};
 class ledclassify: public QObject
 {
     Q_OBJECT
@@ -31,8 +41,8 @@ public:
     ledclassify();
     bool ledfront(Mat &ledmat,float scale=0.5);
     bool ledback(Mat &ledmat,float scale=0.5);
-    bool ledload();
-    bool ledsave();
+    void ledload(QTextStream &in);
+    void ledsave(QTextStream &out);
     void initparam();
     thresholdparam m_width;
     thresholdparam m_hight;
@@ -43,10 +53,18 @@ public:
     thresholdparam m_minlength;
     thresholdparam m_offset;
     thresholdparam m_radius;
+    thresholdparam m_footratio;
+    thresholdparam m_emptyratio;
+    thresholdparam m_highsamilar;
+    thresholdparam m_emptysamilar;
+    thresholdparam m_fmthresh;
+    thresholdparam m_fmcount;
     bool calfront(Mat &mat, float scale);
     bool calback(Mat ledmat, float scale);
     void getroi(Mat &ledmat, Rect *rcV,Mat *underV);
     bool calcornor(Mat &cornormat, Rect &bd);
+    void saveparam(QTextStream &out, const thresholdparam &param);
+    void loadparam(QTextStream &in,thresholdparam &param);
 signals:
     /**
      * @brief sendsuccess

@@ -16,6 +16,7 @@ using namespace cv;
 void scalemat(Mat &mat,float scale);
 void getimgroi(Mat& mat,const float scale);
 void imrotate(Mat& img, Mat& newIm, double angle,Point2f pt);
+double getThreshVal_Otsu_8u_mask(const Mat src, const Mat& mask);
 double Entropy(Mat img);
 double getfuza(Mat &img);
 void imshowMany(const std::string& _winName, const vector<Mat>& _imgs);

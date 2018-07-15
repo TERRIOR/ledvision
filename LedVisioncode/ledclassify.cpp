@@ -12,6 +12,13 @@ void ledclassify::initparam()
     m_minlength.setdownup(-1,3);
     m_offset.setdownup(0,5);
     m_radius.setdownup(57,65);
+    m_fmthresh.setdownup(42,255);
+    m_fmcount.setdownup(20,500);
+    //引脚
+    m_emptyratio.setdownup(0,0.5);
+    m_footratio.setdownup(0,0.6);
+    m_emptysamilar.setdownup(0.2,1);
+    m_highsamilar.setdownup(0.25,1);
 }
 void ledclassify::getroi(Mat &ledmat,Rect *rcV,Mat *underV){
     double centerx=ledmat.cols/2;
@@ -29,21 +36,14 @@ void ledclassify::getroi(Mat &ledmat,Rect *rcV,Mat *underV){
     rcV[1] =Rect(vtVert[1].x, vtVert[1].y, widthV, heightV);          //右上
     rcV[2] =Rect(vtVert[2].x, vtVert[2].y, widthV, heightV);        //左下
     rcV[3] =Rect(vtVert[3].x, vtVert[3].y, widthV, heightV);//*↑   //右下
-    Mat maskV[4];
     for (int i = 0; i<4; i++)
     {
-        ledmat.copyTo(maskV[i]);
-        maskV[i].setTo(cv::Scalar::all(0));
-        cv::rectangle(maskV[i], rcV[i], Scalar(255, 255, 255), -1, 1, 0);
-        ledmat.copyTo(underV[i], maskV[i]);
-        imshow("das",underV[i]);
-        waitKey();
+        underV[i]=ledmat(rcV[i]);
     }
 }
 bool ledclassify::calback(Mat mat_b,float scale){
     //TODO:添加背面处理代码
     Mat ledmat;
-
     scalemat(mat_b, scale);
     cvtColor(mat_b, mat_b, CV_RGBA2RGB);
     getimgroi(mat_b, 0.9);   //*
@@ -53,7 +53,6 @@ bool ledclassify::calback(Mat mat_b,float scale){
     threshold(image, image, 200, 255, THRESH_BINARY_INV);//*
     Mat element = getStructuringElement(MORPH_RECT, Size(15, 15));//*
     morphologyEx(image, image, MORPH_CLOSE, element);
-
     vector<vector<Point>> contours;
     vector<Vec4i> hierarcy;
     Mat dstImg;
@@ -73,7 +72,7 @@ bool ledclassify::calback(Mat mat_b,float scale){
     {
         double area = contourArea(Mat(contours[i]));
         //cout <<"contourArea = " <<area <<endl;
-        if (area < 12000||area>22000)continue;
+        if (area < 10000*4*scale*scale||area>40000*4*scale*scale)continue;
         box[i] = minAreaRect(Mat(contours[i]));  //计算每个轮廓最小外接矩形
         box[i].points(rect);  //把最小外接矩形四个端点复制给rect数组
         int angle=box[i].angle;
@@ -93,10 +92,9 @@ bool ledclassify::calback(Mat mat_b,float scale){
 
     //cv::imshow("dst", ledmat);
     //cout<<"led.size："<<ledmat.cols<<"*"<<ledmat.rows<<endl;
+    //纵向
     double areaV[4];
     double SquaV[4];
-    //纵向
-
     Rect rcV[4];
     Mat underV[4];
     Mat image1;
@@ -132,6 +130,7 @@ bool ledclassify::calback(Mat mat_b,float scale){
         getroi(image1,rcV,underV);
         for (int i = 0; i<4; i++)
         {
+
             threshold(underV[i], underV[i],200,255,THRESH_BINARY);  //*
             morphologyEx(underV[i], underV[i], MORPH_CLOSE, element1);
             areaV[i] = countNonZero(underV[i]); //统计非0的像素值
@@ -146,31 +145,38 @@ bool ledclassify::calback(Mat mat_b,float scale){
             return false;
         }
         //白色占比小于0.5 真实正方形尺寸小于模板的0.6时 均是NG零件
-        if(SquaV[i]<0.5||realrectv[i].height<rcV[i].height*0.6){
+        m_emptyratio.setNow(SquaV[i]);
+        m_footratio.setNow((float)realrectv[i].height/rcV[i].height);
+        if(m_emptyratio.inrange()||m_footratio.inrange()){
             emit senderror(5);
             return false;
         }
         //偶数次检测一次 即是同一侧的引脚 进行数据对比
         if(i%2==1){
-            if(abs(realrectv[i].height-realrectv[i-1].height)>rcV[i].height*0.25
-                ||fabs(SquaV[i] - SquaV[i-1]) > 0.2){
+            m_highsamilar.setNow(abs((float)realrectv[i].height-realrectv[i-1].height)/rcV[i].height);
+            m_emptysamilar.setNow(fabs(SquaV[i] - SquaV[i-1]));
+            if(m_highsamilar.inrange()||m_emptysamilar.inrange()){
                 emit senderror(5);
                 return false;
             }
         }
     }
-
+    //背面的检测成功 OK
+    sendsuccess(1);
     return true;
 }
 bool ledclassify::calcornor(Mat &cornormat,Rect &bd){
     vector<vector<Point>> contours;
     vector<Vec4i> hierarcy;
     //CV_RETR_EXTERNAL:只检测多连通区域的外部轮廓
+
     findContours(cornormat, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+
     //vector<Rect> box(contours.size()); //定义最小外接矩形集合
     if (contours.size() == 0||contours.size()>10)
     {
-        emit senderror(7);
+
+        emit senderror(6);
         return false;
     }
     int i;
@@ -183,7 +189,7 @@ bool ledclassify::calcornor(Mat &cornormat,Rect &bd){
         break;
     }
     if(i==contours.size()){
-        senderror(7);
+        senderror(5);
         return false;
     }
 
@@ -197,16 +203,53 @@ bool ledclassify::ledback(Mat &ledmat,float scale)
     cout<<"time: "<<timer.TimerFinish()<<endl;
     return res;
 }
-
-bool ledclassify::ledload()
+void ledclassify::loadparam(QTextStream &in,thresholdparam &param){
+    float a,b;
+    in>>a;
+    in>>b;
+    param.setdownup(a,b);
+}
+void ledclassify::ledload(QTextStream &in)
 {
-    return true;
+    loadparam(in,m_width);
+    loadparam(in,m_hight);
+    loadparam(in,m_ratio);
+    loadparam(in,m_gradmax);
+    loadparam(in,m_gradmin);
+    loadparam(in,m_maxlength);
+    loadparam(in,m_minlength);
+    loadparam(in,m_fmthresh);
+    loadparam(in,m_fmcount);
+    loadparam(in,m_emptyratio);
+    loadparam(in,m_footratio);
+    loadparam(in,m_emptysamilar);
+    loadparam(in,m_highsamilar);
+
+}
+void ledclassify::saveparam(QTextStream &out,const thresholdparam &param){
+    out<<param.down();
+    out<<' ';
+    out<<param.up();
+    out<<' ';
+}
+void ledclassify::ledsave(QTextStream &out)
+{
+    saveparam(out,m_width);
+    saveparam(out,m_hight);
+    saveparam(out,m_ratio);
+    saveparam(out,m_gradmax);
+    saveparam(out,m_gradmin);
+    saveparam(out,m_maxlength);
+    saveparam(out,m_minlength);
+    saveparam(out,m_fmthresh);
+    saveparam(out,m_fmcount);
+    saveparam(out,m_emptyratio);
+    saveparam(out,m_footratio);
+    saveparam(out,m_emptysamilar);
+    saveparam(out,m_highsamilar);
+
 }
 
-bool ledclassify::ledsave()
-{
-    return true;
-}
 
 ledclassify::ledclassify()
 {
@@ -247,7 +290,7 @@ bool ledclassify::calfront(Mat &mat,float scale){
     {
         double area = contourArea(Mat(contours[i]));
         cout<<area<<endl;
-        if(area<20000||area>26000)continue;
+        if(area<10000*4*scale*scale||area>40000*4*scale*scale)continue;
         box[i] = minAreaRect(Mat(contours[i]));  //计算每个轮廓最小外接矩形
         box[i].points(rect);  //把最小外接矩形四个端点复制给rect数组
         int angle=box[i].angle;
@@ -307,10 +350,10 @@ bool ledclassify::calfront(Mat &mat,float scale){
     rule rule3(it[4],it[5],ledmat,40*scale,3,-3);
     rule rule4(it[6],it[7],ledmat,40*scale,3,-3);
 
-    line(ledmat, it[0], it[1], Scalar(255, 0,255), 2, 10);
-    line(ledmat, it[2],it[3], Scalar(255, 0,255), 2, 10);
-    line(ledmat,it[4],it[5], Scalar(255, 0,255), 2, 10);
-    line(ledmat, it[6],it[7], Scalar(255, 0,255), 2, 10);
+//    line(ledmat, it[0], it[1], Scalar(255, 0,255), 2, 10);
+//    line(ledmat, it[2],it[3], Scalar(255, 0,255), 2, 10);
+//    line(ledmat,it[4],it[5], Scalar(255, 0,255), 2, 10);
+//    line(ledmat, it[6],it[7], Scalar(255, 0,255), 2, 10);
 
     vector<Point> veccircle;
     Point p1=rule1.calpoint(rule1.getMaxxd(),rule1.getGradhislength());
@@ -365,13 +408,75 @@ bool ledclassify::calfront(Mat &mat,float scale){
             &&m_offset.inrange()&&m_radius.inrange())
     {
         cout<<"多少胶：OK"<<endl;
-
-        return true;
     }else{
         cout<<"多少胶：NG"<<endl;
         emit senderror(3);
         return false;
     }
+    //第一步正面成功
+    //TODO:可能需要固定大小，即是限定图像的尺寸大小，调用resize
+    cvtColor(ledmat2, ledmat2, CV_BGR2GRAY);
+
+    //	Mat mask;
+    Mat circleRegion;
+    equalizeHist(ledmat2, ledmat2);
+    ledmat2.copyTo(circleRegion);
+    Mat circleRegion_med;
+    //medianBlur(circleRegion, circleRegion_med, 3);
+    blur(circleRegion,circleRegion_med,Size(3,3));
+    //sobel
+    Mat grad_x, grad_y;
+    Mat abs_grad_x, abs_grad_y;
+    Sobel(circleRegion_med, grad_x, CV_16S, 1, 0, 3, 1, 0, BORDER_DEFAULT);  //*CV_16S根据图像depth改，详查sobel算子。
+    Sobel(circleRegion_med, grad_y, CV_16S, 0, 1, 3, 1, 0, BORDER_DEFAULT);
+    convertScaleAbs(grad_x, abs_grad_x); //转回CV_8U
+    convertScaleAbs(grad_y, abs_grad_y);
+    Mat sobel;
+    addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, sobel);
+    //imshow("sobel", sobel);
+    Mat elementS = getStructuringElement(MORPH_RECT, Size(2, 2));  //*
+    morphologyEx(sobel, sobel, MORPH_DILATE, elementS);
+    //imshow("sobel1", sobel);
+    blur(sobel,sobel,Size(6,6));
+    //消除非缺陷
+    Mat maskS1;
+    Mat removeS1;
+    sobel.copyTo(maskS1);
+    maskS1.setTo(cv::Scalar::all(0));
+    circle(maskS1, centerpoint, r-5, Scalar(255,255,255), -1, 1);  //*
+    //imshow("maskS1", maskS1);
+    sobel.copyTo(removeS1, maskS1);
+
+    double thresh = getThreshVal_Otsu_8u_mask(removeS1, maskS1);//掩膜部分Otsu分割
+    threshold(removeS1, removeS1, thresh+45, 255, CV_THRESH_BINARY); //*
+    //std::cout << "thresh = " << thresh << endl;
+
+    vector<vector<Point>> contr1;
+    vector<Vec4i> hierr1;
+    vector<int>area;
+    vector<int>::iterator ar;
+    findContours(removeS1, contr1, hierr1, CV_RETR_TREE, CV_CHAIN_APPROX_NONE);
+    for (int i=0; i<contr1.size(); i++)
+        area.push_back(contourArea(Mat(contr1[i])));
+    int defectN = 0;
+    for (ar = area.begin(); ar != area.end(); ar++)
+    {
+        std::cout << *ar << endl;
+        m_fmcount.setNow(*ar);
+        if (m_fmcount.inrange())  //*
+            defectN++;
+    }
+    //m_fmcount.setNow(thresh);
+    m_fmthresh=thresh;
+    if (m_fmthresh.now()>m_fmthresh.down() && defectN>0)   //*
+    {
+        senderror(4);
+        cout<<"异物:NG"<<endl;
+        return false;
+    }
+    cout<<"异物:OK"<<endl;
+    sendsuccess(0);
+    return true;
 }
 
 bool ledclassify::ledfront(Mat &mat,float scale)

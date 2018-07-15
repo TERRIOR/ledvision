@@ -12,6 +12,7 @@
 #include <qfile.h>
 #include <QDesktopWidget>
 #include <qwidget.h>
+#include <qmessagebox.h>
 #include <signaldialog.h>
 #include "ledclassify.h"
 #include <qglobal.h>
@@ -57,11 +58,17 @@ public:
     ledclassify m_ledc;
     Mat m_workmat1;
     Mat m_workmat2;
+    int m_icountall=0;//总数
+    int m_errorcount[10];
     //图像设置，分为两种不同的信号源
     void imgsetting(int i, int j);
-    void showres(bool i);
+    void showres(bool i,int j);
     void UpdateGUI(QLabel *ql, Mat *imgshow);
+    void showparam();
+    void setparam();
 private slots:
+    void RecClassifyError(int);
+    void RecClassifySuccess(int);
     void on_pushButton_min_clicked();
 
     void on_pushButton_max_clicked();
@@ -86,6 +93,12 @@ private slots:
 
     void on_pushButton_save_clicked();
 
+    void on_pushButton_clicked();
+
+    void on_pushButton_load_clicked();
+
+    void on_pushButton_2_clicked();
+
 private:
     Ui::MainWindow *ui;
     QRect location;
@@ -95,16 +108,17 @@ private:
     int m_isignal2camnode=-1;
     int m_isignalsource1=0;
     int m_isignalsource2=0;
-
     string m_scamname1="";
     string m_scamname2="";
     bool max;
-
     Mat m_fileimg;
-
     int m_fileimgnode;
     QString m_filename;
     QStringList m_qstrlist;
+    QString m_morenfile="moren.zv";
+
+    void UpdateTextedit(QTextEdit *editdown, QTextEdit *editup, thresholdparam thp);
+    void setTextedit(QTextEdit *editdown, QTextEdit *editup, thresholdparam &thp);
 };
 
 #endif // MAINWINDOW_H

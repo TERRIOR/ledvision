@@ -61,7 +61,5 @@ void thresholdparam::setUp(float up)
 
 void thresholdparam::showallparam()
 {
-    cout<<m_down<<endl;
-    cout<<m_now<<endl;
-    cout<<m_up<<endl;
+    cout<<m_down<<" "<<m_now<<" "<<m_up<<endl;
 }

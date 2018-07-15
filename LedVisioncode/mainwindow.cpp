@@ -8,8 +8,20 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
 //    ui->pushButton_2->setEnabled(false);
 //    ui->pushButton_3->setEnabled(false);
+    memset(m_errorcount,0,10*sizeof(int));
+    QFile ExpandData(m_morenfile);
+    if(ExpandData.exists()&&ExpandData.open(QIODevice::ReadWrite))
+    {
+        QTextStream in(&ExpandData);
+        m_ledc.ledload(in);
+        ExpandData.close();
+    }
     initform();
+    connect(&m_ledc,SIGNAL(senderror(int)),this,SLOT(RecClassifyError(int)));
+    connect(&m_ledc,SIGNAL(sendsuccess(int)),this,SLOT(RecClassifySuccess(int)));
+
 }
+
 
 MainWindow::~MainWindow()
 {
@@ -43,8 +55,52 @@ void MainWindow::initform()
     ui->tableWidgetfile->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     showMaximized();
+    showparam();
 }
+void MainWindow::showparam(){
+    //TODO:把ledclassify的参数更新到界面
+    UpdateTextedit(ui->textEdit_width_down,ui->textEdit_width_up,m_ledc.m_width);
+    UpdateTextedit(ui->textEdit_high_down,ui->textEdit_high_up,m_ledc.m_hight);
+    UpdateTextedit(ui->textEdit_ratio_down,ui->textEdit_ratio_up,m_ledc.m_ratio);
+    UpdateTextedit(ui->textEdit_maxvalue_down,ui->textEdit_maxvalue_up,m_ledc.m_gradmax);
+    UpdateTextedit(ui->textEdit_minvalue_down,ui->textEdit_minvalue_up,m_ledc.m_gradmin);
+    UpdateTextedit(ui->textEdit_maxwidth_down,ui->textEdit_maxwidth_up,m_ledc.m_maxlength);
+    UpdateTextedit(ui->textEdit_minwidth_down,ui->textEdit_minwidth_up,m_ledc.m_minlength);
+    UpdateTextedit(ui->textEdit_offset_down,ui->textEdit_offset_up,m_ledc.m_offset);
+    UpdateTextedit(ui->textEdit_radius_down,ui->textEdit_radius_up,m_ledc.m_radius);
+    UpdateTextedit(ui->textEdit_farea_down,ui->textEdit_farea_up,m_ledc.m_emptyratio);
+    UpdateTextedit(ui->textEdit_fhigh_down,ui->textEdit_fhigh_up,m_ledc.m_footratio);
+    UpdateTextedit(ui->textEdit_fsa_down,ui->textEdit_fsa_up,m_ledc.m_emptysamilar);
+    UpdateTextedit(ui->textEdit_fsh_down,ui->textEdit_fsh_up,m_ledc.m_highsamilar);
+    UpdateTextedit(ui->textEdit_fmgray_down,ui->textEdit_fmgray_up,m_ledc.m_fmthresh);
+    UpdateTextedit(ui->textEdit_fmsize_down,ui->textEdit_fmsize_up,m_ledc.m_fmcount);
+}
+void MainWindow::UpdateTextedit(QTextEdit* editdown,QTextEdit *editup,thresholdparam thp){
+    editdown->setText(QString::number(thp.down()));
+    editup->setText(QString::number(thp.up()));
 
+}
+void MainWindow::setparam(){
+    //TODO:把界面参数更新到ledclassify
+    setTextedit(ui->textEdit_width_down,ui->textEdit_width_up,m_ledc.m_width);
+    setTextedit(ui->textEdit_high_down,ui->textEdit_high_up,m_ledc.m_hight);
+    setTextedit(ui->textEdit_ratio_down,ui->textEdit_ratio_up,m_ledc.m_ratio);
+    setTextedit(ui->textEdit_maxvalue_down,ui->textEdit_maxvalue_up,m_ledc.m_gradmax);
+    setTextedit(ui->textEdit_minvalue_down,ui->textEdit_minvalue_up,m_ledc.m_gradmin);
+    setTextedit(ui->textEdit_maxwidth_down,ui->textEdit_maxwidth_up,m_ledc.m_maxlength);
+    setTextedit(ui->textEdit_minwidth_down,ui->textEdit_minwidth_up,m_ledc.m_minlength);
+    setTextedit(ui->textEdit_offset_down,ui->textEdit_offset_up,m_ledc.m_offset);
+    setTextedit(ui->textEdit_radius_down,ui->textEdit_radius_up,m_ledc.m_radius);
+    setTextedit(ui->textEdit_farea_down,ui->textEdit_farea_up,m_ledc.m_emptyratio);
+    setTextedit(ui->textEdit_fhigh_down,ui->textEdit_fhigh_up,m_ledc.m_footratio);
+    setTextedit(ui->textEdit_fsa_down,ui->textEdit_fsa_up,m_ledc.m_emptysamilar);
+    setTextedit(ui->textEdit_fsh_down,ui->textEdit_fsh_up,m_ledc.m_highsamilar);
+    setTextedit(ui->textEdit_fmgray_down,ui->textEdit_fmgray_up,m_ledc.m_fmthresh);
+    setTextedit(ui->textEdit_fmsize_down,ui->textEdit_fmsize_up,m_ledc.m_fmcount);
+}
+void MainWindow::setTextedit(QTextEdit* editdown,QTextEdit *editup,thresholdparam &thp){
+    thp.setdownup(editdown->toPlainText().toFloat(),editup->toPlainText().toFloat());
+}
 void MainWindow::on_pushButton_min_clicked()
 {
     showMinimized();
@@ -109,7 +165,7 @@ void __stdcall GrabImageCallback0(CameraHandle hCamera, BYTE *pFrameBuffer, tSdk
 
         if(!pThis->m_workmat1.empty())
 
-            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat1));
+            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat1),0);
 
             //imshow("cam1",matcam1);
         waitKey(1);
@@ -152,20 +208,35 @@ void __stdcall GrabImageCallback1(CameraHandle hCamera, BYTE *pFrameBuffer, tSdk
         cvSetData(g_iplImage2,pThis->m_pFrameBuffer[1],pFrameHead->iWidth*(pThis->m_sFrInfo[1].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3));
         pThis->m_workmat2=Mat(g_iplImage2);
         if(!pThis->m_workmat2.empty())
-            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat2));
+            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat2),1);
             //imshow("cam2",matcam2);
         waitKey(1);
     }
 
     memcpy(&pThis->m_sFrInfo[1],pFrameHead,sizeof(tSdkFrameHead));
-
+    //第一个工位是所有的零件都会经过个的，所以在第一工位记录总数
+    pThis->m_icountall++;
 }
-void MainWindow::showres(bool i){
-    if(i){
-        ui->label_result->setText("OK");
-    }else{
-        ui->label_result->setText("NG");
+void MainWindow::showres(bool i,int j){
+    switch (j) {
+    case 0:
+        if(i){
+            ui->label_result->setText("OK");
+        }else{
+            ui->label_result->setText("NG");
+        }
+        break;
+    case 1:
+        if(i){
+            ui->label_result_2->setText("OK");
+        }else{
+            ui->label_result_2->setText("NG");
+        }
+        break;
+    default:
+        break;
     }
+
 }
 bool MainWindow::caminit(string str,int signalnode){
     int                     iCameraCounts = 4;
@@ -394,12 +465,12 @@ void MainWindow::on_tableWidgetfile_cellDoubleClicked(int row, int column)
     if(ui->radioButton->isChecked()){
         cout<<"工位2"<<endl;
         UpdateGUI(ui->lblOriginal,&m_fileimg);
-        showres(m_ledc.ledback(m_fileimg));
+        showres(m_ledc.ledback(m_fileimg),1);
 
     }else if(ui->radioButton_2->isChecked()){
         cout<<"工位1"<<endl;
         UpdateGUI(ui->lblOriginal_2,&m_fileimg);
-        showres(m_ledc.ledfront(m_fileimg));
+        showres(m_ledc.ledfront(m_fileimg),0);
     }
 }
 
@@ -469,6 +540,56 @@ void MainWindow::UpdateGUI(QLabel *ql,Mat *imgshow)
     }
 
 }
+
+void MainWindow::RecClassifyError(int errortype)
+{
+    switch (errortype) {
+    case errornoled:
+        ui->label_error->setText(QString::fromLocal8Bit("图像中没有led"));
+        break;
+    case errorothersth:
+        ui->label_error->setText(QString::fromLocal8Bit("有其他异物"));
+        break;
+    case errorbroken:
+        ui->label_error->setText(QString::fromLocal8Bit("led压烂"));
+        break;
+    case errorglue:
+        ui->label_error->setText(QString::fromLocal8Bit("胶量不正常"));
+        break;
+    case errorfmater:
+        ui->label_error->setText(QString::fromLocal8Bit("led有异物"));
+        break;
+    case errorfoot:
+        ui->label_error_2->setText(QString::fromLocal8Bit("led背面引脚有问题"));
+        break;
+    case errorotherback:
+        ui->label_error_2->setText(QString::fromLocal8Bit("led背面有缺陷，问题未知"));
+        break;
+    case errorotherfront:
+        ui->label_error->setText(QString::fromLocal8Bit("led正面有缺陷，问题未知"));
+        break;
+    case returndeal:
+        ui->label_error->setText(QString::fromLocal8Bit("led需要返回重新识别"));
+        break;
+    default:
+        break;
+    }
+}
+
+void MainWindow::RecClassifySuccess(int i)
+{
+    switch (i) {
+    case 0:
+        ui->label_error->setText(QString::fromLocal8Bit("处于工位1检测\nled正面正常"));
+        break;
+    case 1:
+        ui->label_error_2->setText(QString::fromLocal8Bit("处于工位2检测\nled背面正常"));
+        break;
+    default:
+        break;
+    }
+
+}
 void MainWindow::on_pushButton_takeimg_clicked()
 {
     //TODO:添加单拍代码
@@ -481,7 +602,7 @@ void MainWindow::on_pushButton_takeimg_clicked()
             //获取列表图像 运行结果
             //工位2检测背面
             UpdateGUI(ui->lblOriginal,&m_fileimg);
-            showres(m_ledc.ledback(m_fileimg));
+            showres(m_ledc.ledback(m_fileimg),1);
             break;
         case 1:
             //软触发
@@ -496,7 +617,7 @@ void MainWindow::on_pushButton_takeimg_clicked()
             //获取列表图像 运行结果
             //工位1检测前面
             UpdateGUI(ui->lblOriginal_2,&m_fileimg);
-            showres(m_ledc.ledfront(m_fileimg));
+            showres(m_ledc.ledfront(m_fileimg),0);
             break;
         case 1:
             //软触发
@@ -510,4 +631,54 @@ void MainWindow::on_pushButton_takeimg_clicked()
 void MainWindow::on_pushButton_save_clicked()
 {
 
+    QString filename = QFileDialog::getSaveFileName(this,
+            tr("Save"),"",tr("*.zv")); //选择路径
+    QFile ExpandData(filename);
+    if(ExpandData.open(QIODevice::WriteOnly))
+    {
+        /*文本输出流，用于保存数据*/
+        QTextStream out(&ExpandData);
+
+        m_ledc.ledsave(out);
+        ExpandData.close();
+    }
+}
+
+void MainWindow::on_pushButton_clicked()
+{
+    setparam();
+}
+
+void MainWindow::on_pushButton_load_clicked()
+{
+    QString filename = QFileDialog::getOpenFileName(this,
+            tr("Load"),"",tr("*.zv")); //选择路径
+    cout<<filename.toStdString()<<endl;
+    QFile ExpandData(filename);
+    if(ExpandData.open(QIODevice::ReadWrite))
+    {
+        /*文本输出流，用于保存数据*/
+
+        QTextStream in(&ExpandData);
+        m_ledc.ledload(in);
+        ExpandData.close();
+    }
+    showparam();
+}
+
+void MainWindow::on_pushButton_2_clicked()
+{
+    QMessageBox::StandardButton res=QMessageBox::question(this,QString::fromLocal8Bit("提示"),QString::fromLocal8Bit("作为默认参数"));
+    cout<<res<<QMessageBox::Ok<<endl;
+    if(res!=16384){
+        return;
+    }
+    QFile ExpandData(m_morenfile);
+    if(ExpandData.open(QIODevice::WriteOnly))
+    {
+        /*文本输出流，用于保存数据*/
+        QTextStream out(&ExpandData);
+        m_ledc.ledsave(out);
+        ExpandData.close();
+    }
 }
