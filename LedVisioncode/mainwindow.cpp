@@ -5,7 +5,14 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
+    setup();
+}
+void MainWindow::setup(){
     ui->setupUi(this);
+    if(m_model){
+        ui->label->setText(QString::fromLocal8Bit("程序二"));
+    }
+    //ui->pushButton_run->setDown(true);
 //    ui->pushButton_2->setEnabled(false);
 //    ui->pushButton_3->setEnabled(false);
     memset(m_errorcount,0,10*sizeof(int));
@@ -13,18 +20,76 @@ MainWindow::MainWindow(QWidget *parent) :
     if(ExpandData.exists()&&ExpandData.open(QIODevice::ReadWrite))
     {
         QTextStream in(&ExpandData);
-        m_ledc.ledload(in);
+        ledc.ledload(in);
         ExpandData.close();
     }
     initform();
-    connect(&m_ledc,SIGNAL(senderror(int)),this,SLOT(RecClassifyError(int)));
-    connect(&m_ledc,SIGNAL(sendsuccess(int)),this,SLOT(RecClassifySuccess(int)));
+    connect(&ledc,SIGNAL(senderror(int)),this,SLOT(RecClassifyError(int)));
+    connect(&ledc,SIGNAL(sendsuccess(int)),this,SLOT(RecClassifySuccess(int)));
+    connect(&ledcam,SIGNAL(sendupdateui(bool,int)),this,SLOT(Recupdateui(bool,int)));
+}
 
+void MainWindow::savecam(QTextStream &out)
+{
+    out<<m_isignalsource1;
+    out<<' ';
+    out<<QString::fromStdString(m_scamname1);
+    out<<' ';
+    out<<m_isignalsource2;
+    out<<' ';
+    out<<QString::fromStdString(m_scamname2);
+    out<<' ';
+
+}
+
+void MainWindow::loadcam(QTextStream &in)
+{
+    QString str1,str2;
+    in>>m_isignalsource1;
+    in>>str1;
+    in>>m_isignalsource2;
+    in>>str2;
+    m_scamname1=str1.toStdString();
+    m_scamname2=str2.toStdString();
+}
+
+void MainWindow::Recupdateui(bool i, int j)
+{
+    showres(i,j);
+    switch (j) {
+    case 0:
+        UpdateGUI(ui->lblOriginal,&ledcam.m_workmat1);
+        break;
+    case 1:
+        UpdateGUI(ui->lblOriginal_2,&ledcam.m_workmat2);
+        break;
+    default:
+        break;
+    }
+}
+
+MainWindow::MainWindow( bool model,QWidget *parent):
+    QMainWindow(parent),
+    ui(new Ui::MainWindow),
+    m_model(model)
+{
+    //句柄不为NULL时意味着已经打开了一个LedVision软件，运用辅助模式
+    if(m_model){
+       m_morenfile="moren2.zv";
+       //
+       cout<<m_morenfile.toStdString()<<endl;
+    }
+    setup();
 }
 
 
 MainWindow::~MainWindow()
 {
+    ledcam.camuninit(0);
+    ledcam.camuninit(1);
+    if(conthread!=NULL){
+        delete conthread;
+    }
     delete ui;
 }
 void MainWindow::initform()
@@ -34,7 +99,7 @@ void MainWindow::initform()
     this->setProperty("canMove", true);
     this->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint | Qt::WindowMinMaxButtonsHint);
     ui->mainToolBar->hide();
-    QString qssFile=":/qss/flatwhite.css";
+    QString qssFile=":/qss/silvery.css";
     QFile file(qssFile);
     if (file.open(QFile::ReadOnly)) {
         QString qss = file.readAll();
@@ -59,21 +124,21 @@ void MainWindow::initform()
 }
 void MainWindow::showparam(){
     //TODO:把ledclassify的参数更新到界面
-    UpdateTextedit(ui->textEdit_width_down,ui->textEdit_width_up,m_ledc.m_width);
-    UpdateTextedit(ui->textEdit_high_down,ui->textEdit_high_up,m_ledc.m_hight);
-    UpdateTextedit(ui->textEdit_ratio_down,ui->textEdit_ratio_up,m_ledc.m_ratio);
-    UpdateTextedit(ui->textEdit_maxvalue_down,ui->textEdit_maxvalue_up,m_ledc.m_gradmax);
-    UpdateTextedit(ui->textEdit_minvalue_down,ui->textEdit_minvalue_up,m_ledc.m_gradmin);
-    UpdateTextedit(ui->textEdit_maxwidth_down,ui->textEdit_maxwidth_up,m_ledc.m_maxlength);
-    UpdateTextedit(ui->textEdit_minwidth_down,ui->textEdit_minwidth_up,m_ledc.m_minlength);
-    UpdateTextedit(ui->textEdit_offset_down,ui->textEdit_offset_up,m_ledc.m_offset);
-    UpdateTextedit(ui->textEdit_radius_down,ui->textEdit_radius_up,m_ledc.m_radius);
-    UpdateTextedit(ui->textEdit_farea_down,ui->textEdit_farea_up,m_ledc.m_emptyratio);
-    UpdateTextedit(ui->textEdit_fhigh_down,ui->textEdit_fhigh_up,m_ledc.m_footratio);
-    UpdateTextedit(ui->textEdit_fsa_down,ui->textEdit_fsa_up,m_ledc.m_emptysamilar);
-    UpdateTextedit(ui->textEdit_fsh_down,ui->textEdit_fsh_up,m_ledc.m_highsamilar);
-    UpdateTextedit(ui->textEdit_fmgray_down,ui->textEdit_fmgray_up,m_ledc.m_fmthresh);
-    UpdateTextedit(ui->textEdit_fmsize_down,ui->textEdit_fmsize_up,m_ledc.m_fmcount);
+    UpdateTextedit(ui->textEdit_width_down,ui->textEdit_width_up,ledc.m_width);
+    UpdateTextedit(ui->textEdit_high_down,ui->textEdit_high_up,ledc.m_hight);
+    UpdateTextedit(ui->textEdit_ratio_down,ui->textEdit_ratio_up,ledc.m_ratio);
+    UpdateTextedit(ui->textEdit_maxvalue_down,ui->textEdit_maxvalue_up,ledc.m_gradmax);
+    UpdateTextedit(ui->textEdit_minvalue_down,ui->textEdit_minvalue_up,ledc.m_gradmin);
+    UpdateTextedit(ui->textEdit_maxwidth_down,ui->textEdit_maxwidth_up,ledc.m_maxlength);
+    UpdateTextedit(ui->textEdit_minwidth_down,ui->textEdit_minwidth_up,ledc.m_minlength);
+    UpdateTextedit(ui->textEdit_offset_down,ui->textEdit_offset_up,ledc.m_offset);
+    UpdateTextedit(ui->textEdit_radius_down,ui->textEdit_radius_up,ledc.m_radius);
+    UpdateTextedit(ui->textEdit_farea_down,ui->textEdit_farea_up,ledc.m_emptyratio);
+    UpdateTextedit(ui->textEdit_fhigh_down,ui->textEdit_fhigh_up,ledc.m_footratio);
+    UpdateTextedit(ui->textEdit_fsa_down,ui->textEdit_fsa_up,ledc.m_emptysamilar);
+    UpdateTextedit(ui->textEdit_fsh_down,ui->textEdit_fsh_up,ledc.m_highsamilar);
+    UpdateTextedit(ui->textEdit_fmgray_down,ui->textEdit_fmgray_up,ledc.m_fmthresh);
+    UpdateTextedit(ui->textEdit_fmsize_down,ui->textEdit_fmsize_up,ledc.m_fmcount);
 }
 void MainWindow::UpdateTextedit(QTextEdit* editdown,QTextEdit *editup,thresholdparam thp){
     editdown->setText(QString::number(thp.down()));
@@ -82,21 +147,21 @@ void MainWindow::UpdateTextedit(QTextEdit* editdown,QTextEdit *editup,thresholdp
 }
 void MainWindow::setparam(){
     //TODO:把界面参数更新到ledclassify
-    setTextedit(ui->textEdit_width_down,ui->textEdit_width_up,m_ledc.m_width);
-    setTextedit(ui->textEdit_high_down,ui->textEdit_high_up,m_ledc.m_hight);
-    setTextedit(ui->textEdit_ratio_down,ui->textEdit_ratio_up,m_ledc.m_ratio);
-    setTextedit(ui->textEdit_maxvalue_down,ui->textEdit_maxvalue_up,m_ledc.m_gradmax);
-    setTextedit(ui->textEdit_minvalue_down,ui->textEdit_minvalue_up,m_ledc.m_gradmin);
-    setTextedit(ui->textEdit_maxwidth_down,ui->textEdit_maxwidth_up,m_ledc.m_maxlength);
-    setTextedit(ui->textEdit_minwidth_down,ui->textEdit_minwidth_up,m_ledc.m_minlength);
-    setTextedit(ui->textEdit_offset_down,ui->textEdit_offset_up,m_ledc.m_offset);
-    setTextedit(ui->textEdit_radius_down,ui->textEdit_radius_up,m_ledc.m_radius);
-    setTextedit(ui->textEdit_farea_down,ui->textEdit_farea_up,m_ledc.m_emptyratio);
-    setTextedit(ui->textEdit_fhigh_down,ui->textEdit_fhigh_up,m_ledc.m_footratio);
-    setTextedit(ui->textEdit_fsa_down,ui->textEdit_fsa_up,m_ledc.m_emptysamilar);
-    setTextedit(ui->textEdit_fsh_down,ui->textEdit_fsh_up,m_ledc.m_highsamilar);
-    setTextedit(ui->textEdit_fmgray_down,ui->textEdit_fmgray_up,m_ledc.m_fmthresh);
-    setTextedit(ui->textEdit_fmsize_down,ui->textEdit_fmsize_up,m_ledc.m_fmcount);
+    setTextedit(ui->textEdit_width_down,ui->textEdit_width_up,ledc.m_width);
+    setTextedit(ui->textEdit_high_down,ui->textEdit_high_up,ledc.m_hight);
+    setTextedit(ui->textEdit_ratio_down,ui->textEdit_ratio_up,ledc.m_ratio);
+    setTextedit(ui->textEdit_maxvalue_down,ui->textEdit_maxvalue_up,ledc.m_gradmax);
+    setTextedit(ui->textEdit_minvalue_down,ui->textEdit_minvalue_up,ledc.m_gradmin);
+    setTextedit(ui->textEdit_maxwidth_down,ui->textEdit_maxwidth_up,ledc.m_maxlength);
+    setTextedit(ui->textEdit_minwidth_down,ui->textEdit_minwidth_up,ledc.m_minlength);
+    setTextedit(ui->textEdit_offset_down,ui->textEdit_offset_up,ledc.m_offset);
+    setTextedit(ui->textEdit_radius_down,ui->textEdit_radius_up,ledc.m_radius);
+    setTextedit(ui->textEdit_farea_down,ui->textEdit_farea_up,ledc.m_emptyratio);
+    setTextedit(ui->textEdit_fhigh_down,ui->textEdit_fhigh_up,ledc.m_footratio);
+    setTextedit(ui->textEdit_fsa_down,ui->textEdit_fsa_up,ledc.m_emptysamilar);
+    setTextedit(ui->textEdit_fsh_down,ui->textEdit_fsh_up,ledc.m_highsamilar);
+    setTextedit(ui->textEdit_fmgray_down,ui->textEdit_fmgray_up,ledc.m_fmthresh);
+    setTextedit(ui->textEdit_fmsize_down,ui->textEdit_fmsize_up,ledc.m_fmcount);
 }
 void MainWindow::setTextedit(QTextEdit* editdown,QTextEdit *editup,thresholdparam &thp){
     thp.setdownup(editdown->toPlainText().toFloat(),editup->toPlainText().toFloat());
@@ -133,90 +198,7 @@ void MainWindow::on_pushButton_signal_clicked()
     diasignal->show();
 }
 
-void __stdcall GrabImageCallback0(CameraHandle hCamera, BYTE *pFrameBuffer, tSdkFrameHead* pFrameHead,PVOID pContext)
-{
-    cout<<"callback0"<<" first step"<<endl;
-    CameraSdkStatus status;
-    IplImage *g_iplImage1 = NULL;
-    MainWindow *pThis = (MainWindow*)pContext;
-    //将获得的原始数据转换成RGB格式的数据，同时经过ISP模块，对图像进行降噪，边沿提升，颜色校正等处理。
-    //我公司大部分型号的相机，原始数据都是Bayer格式的
 
-    status = CameraImageProcess(hCamera, pFrameBuffer, pThis->m_pFrameBuffer[0],pFrameHead);
-
-    //分辨率改变了，则刷新背景
-    if (pThis->m_sFrInfo[0].iWidth != pFrameHead->iWidth || pThis->m_sFrInfo[0].iHeight != pFrameHead->iHeight)
-    {
-        pThis->m_sFrInfo[0].iWidth = pFrameHead->iWidth;
-        pThis->m_sFrInfo[0].iHeight = pFrameHead->iHeight;
-    }
-
-    if(status == CAMERA_STATUS_SUCCESS )
-    {
-        //调用SDK封装好的显示接口来显示图像,您也可以将m_pFrameBuffer中的RGB数据通过其他方式显示，比如directX,OpengGL,等方式。
-        CameraImageOverlay(hCamera, pThis->m_pFrameBuffer[0],pFrameHead);
-        if (g_iplImage1)
-        {
-            cvReleaseImageHeader(&g_iplImage1);
-        }
-        g_iplImage1 = cvCreateImageHeader(cvSize(pFrameHead->iWidth,pFrameHead->iHeight),IPL_DEPTH_8U,pThis->m_sFrInfo[0].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3);
-        cvSetData(g_iplImage1,pThis->m_pFrameBuffer[0],pFrameHead->iWidth*(pThis->m_sFrInfo[0].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3));
-        pThis->m_workmat1=Mat(g_iplImage1);
-
-        if(!pThis->m_workmat1.empty())
-
-            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat1),0);
-
-            //imshow("cam1",matcam1);
-        waitKey(1);
-    }
-
-    memcpy(&pThis->m_sFrInfo[0],pFrameHead,sizeof(tSdkFrameHead));
-
-}
-
-void __stdcall GrabImageCallback1(CameraHandle hCamera, BYTE *pFrameBuffer, tSdkFrameHead* pFrameHead,PVOID pContext)
-{
-    cout<<"callback1"<<" second step"<<endl;
-    CameraSdkStatus status;
-    IplImage *g_iplImage2 = NULL;
-    MainWindow *pThis = (MainWindow*)pContext;
-
-
-    //TODO:添加判断逻辑代码，一工位检测是坏的led就不需要进行第二工位的检测了，虽然检测了也没关系，再商量
-//    if(){
-//        return;
-//    }
-    status = CameraImageProcess(hCamera, pFrameBuffer, pThis->m_pFrameBuffer[1],pFrameHead);
-
-    //分辨率改变了，则刷新背景
-    if (pThis->m_sFrInfo[1].iWidth != pFrameHead->iWidth || pThis->m_sFrInfo[1].iHeight != pFrameHead->iHeight)
-    {
-        pThis->m_sFrInfo[1].iWidth = pFrameHead->iWidth;
-        pThis->m_sFrInfo[1].iHeight = pFrameHead->iHeight;
-    }
-
-    if(status == CAMERA_STATUS_SUCCESS )
-    {
-        //调用SDK封装好的显示接口来显示图像,您也可以将m_pFrameBuffer中的RGB数据通过其他方式显示，比如directX,OpengGL,等方式。
-        CameraImageOverlay(hCamera, pThis->m_pFrameBuffer[1],pFrameHead);
-        if (g_iplImage2)
-        {
-            cvReleaseImageHeader(&g_iplImage2);
-        }
-        g_iplImage2 = cvCreateImageHeader(cvSize(pFrameHead->iWidth,pFrameHead->iHeight),IPL_DEPTH_8U,pThis->m_sFrInfo[1].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3);
-        cvSetData(g_iplImage2,pThis->m_pFrameBuffer[1],pFrameHead->iWidth*(pThis->m_sFrInfo[1].uiMediaType == CAMERA_MEDIA_TYPE_MONO8?1:3));
-        pThis->m_workmat2=Mat(g_iplImage2);
-        if(!pThis->m_workmat2.empty())
-            pThis->showres(pThis->m_ledc.ledfront(pThis->m_workmat2),1);
-            //imshow("cam2",matcam2);
-        waitKey(1);
-    }
-
-    memcpy(&pThis->m_sFrInfo[1],pFrameHead,sizeof(tSdkFrameHead));
-    //第一个工位是所有的零件都会经过个的，所以在第一工位记录总数
-    pThis->m_icountall++;
-}
 void MainWindow::showres(bool i,int j){
     switch (j) {
     case 0:
@@ -238,76 +220,7 @@ void MainWindow::showres(bool i,int j){
     }
 
 }
-bool MainWindow::caminit(string str,int signalnode){
-    int                     iCameraCounts = 4;
-    int                     iStatus=-1;
-    tSdkCameraDevInfo       tCameraEnumList[2];
-    tSdkCameraCapbility     g_tCapability;
-    switch(signalnode){
-        case 0:
-            if(m_bsignal1inited)
-                return false;
-        break;
-        case 1:
-            if(m_bsignal2inited)
-                return false;
-        break;
-    }
-    CameraEnumerateDevice(tCameraEnumList,&iCameraCounts);
-    if(iCameraCounts==0){
-        //TODO:add warn
-        return false;
-    }
-    int i;
-    for(i=0;i<iCameraCounts;i++){
-        string strtemp=tCameraEnumList[i].acFriendlyName;
-        if(str==strtemp){
-           iStatus = CameraInit(&tCameraEnumList[i],-1,-1,&m_hCamera[i]);
-           if(iStatus!=CAMERA_STATUS_SUCCESS){
-               cout<< CameraGetErrorString(iStatus)<<endl;
-               return false;
-           }
-           CameraGetCapability(m_hCamera[i],&g_tCapability);
 
-           m_pFrameBuffer[i] = (BYTE *)CameraAlignMalloc(g_tCapability.sResolutionRange.iWidthMax*g_tCapability.sResolutionRange.iHeightMax*3,16);
-           CameraSetTriggerMode(m_hCamera[i],1);
-           /*让SDK进入工作模式，开始接收来自相机发送的图像
-           数据。如果当前相机是触发模式，则需要接收到
-           触发帧以后才会更新图像。    */
-           CameraPlay(m_hCamera[i]);
-           switch (signalnode) {
-           case 0:
-               //与信号1的回调函数绑定
-               m_isignal1camnode=i;
-               m_bsignal1inited=true;
-               CameraSetCallbackFunction(m_hCamera[i],GrabImageCallback0,(PVOID)this,NULL);//"设置图像抓取的回调函数";
-               break;
-           case 1:
-               //与信号2的回调函数绑定
-               m_isignal2camnode=i;
-               m_bsignal2inited=true;
-               CameraSetCallbackFunction(m_hCamera[i],GrabImageCallback1,(PVOID)this,NULL);//"设置图像抓取的回调函数";
-               break;
-           default:
-               break;
-           }
-        }
-    }
-}
-
-void MainWindow::camuninit(int i){
-
-    switch (i) {
-    case 0:
-        CameraUnInit(m_hCamera[m_isignal1camnode]);
-        break;
-    case 1:
-        CameraUnInit(m_hCamera[m_isignal2camnode]);
-        break;
-    default:
-        break;
-    }
-}
 
 void MainWindow::refreshpiclist()
 {
@@ -420,13 +333,17 @@ void MainWindow::on_pushButton_run_toggled(bool checked)
 {
     if(checked){
         //打开定时器定时更新
-
-        ui->pushButton_run->setText(QString::fromLocal8Bit("运行中"));
-
+        if(ledcam.caminit(m_scamname1,0,3)&&ledcam.caminit(m_scamname2,1,3)){
+            ui->pushButton_run->setText(QString::fromLocal8Bit("运行中"));
+        }else{
+            ui->pushButton_run->setChecked(false);
+        }
     }else{
-
-        ui->pushButton_run->setText(QString::fromLocal8Bit("开始运行"));
-
+        if(ledcam.camuninit(0)&&ledcam.camuninit(1)){
+            ui->pushButton_run->setText(QString::fromLocal8Bit("开始运行"));
+        }else{
+            //ui->pushButton_run->setChecked(true);
+        }
     }
 }
 
@@ -465,39 +382,26 @@ void MainWindow::on_tableWidgetfile_cellDoubleClicked(int row, int column)
     if(ui->radioButton->isChecked()){
         cout<<"工位2"<<endl;
         UpdateGUI(ui->lblOriginal,&m_fileimg);
-        showres(m_ledc.ledback(m_fileimg),1);
+        showres(ledc.ledback(m_fileimg),1);
 
     }else if(ui->radioButton_2->isChecked()){
         cout<<"工位1"<<endl;
         UpdateGUI(ui->lblOriginal_2,&m_fileimg);
-        showres(m_ledc.ledfront(m_fileimg),0);
+        showres(ledc.ledfront(m_fileimg),0);
     }
 }
 
-void MainWindow::imgsetting(int i,int j)
-{
-    switch (i) {
-    case 0:
 
-        break;
-    case 1:
-        char str[]="Setting";
-        CameraCreateSettingPage(m_hCamera[j],NULL,str,NULL,NULL,0);//"通知SDK内部建该相机的属性页面";
-        CameraShowSettingPage(m_hCamera[j],TRUE);//TRUE显示相机配置界面。FALSE则隐藏。
-        break;
-
-    }
-}
 
 void MainWindow::on_pushButton_setimg_clicked()
 {
     if(ui->radioButton->isChecked()){
         cout<<"工位2"<<endl;
-        imgsetting(m_isignalsource2,m_isignal2camnode);
+        ledcam.imgsetting(m_isignalsource2,ledcam.isignal1camnode());
 
     }else if(ui->radioButton_2->isChecked()){
         cout<<"工位1"<<endl;
-        imgsetting(m_isignalsource1,m_isignal1camnode);
+        ledcam.imgsetting(m_isignalsource1,ledcam.isignal2camnode());
     }
 }
 
@@ -597,31 +501,40 @@ void MainWindow::on_pushButton_takeimg_clicked()
     //相机形式：软件触发拍照
     if(ui->radioButton->isChecked()){
         cout<<"工位2"<<endl;
-        switch (m_isignal1camnode) {
+        switch (m_isignalsource1) {
         case 0:
             //获取列表图像 运行结果
             //工位2检测背面
             UpdateGUI(ui->lblOriginal,&m_fileimg);
-            showres(m_ledc.ledback(m_fileimg),1);
+
+            showres(ledc.ledback(m_fileimg),1);
             break;
         case 1:
             //软触发
-            CameraSoftTrigger(m_hCamera[m_isignalsource1]);
+            cout<<"cam1"<<endl;
+            ledcam.camuninit(0);
+            ledcam.caminit(m_scamname1,0,1);
+            ledcam.softtrigger(0);
+            //CameraSoftTrigger(m_hCamera[m_isignalsource1]);
             break;
 
         }
     }else if(ui->radioButton_2->isChecked()){
         cout<<"工位1"<<endl;
-        switch (m_isignal1camnode) {
+        switch (m_isignalsource2) {
         case 0:
             //获取列表图像 运行结果
             //工位1检测前面
             UpdateGUI(ui->lblOriginal_2,&m_fileimg);
-            showres(m_ledc.ledfront(m_fileimg),0);
+            showres(ledc.ledfront(m_fileimg),0);
             break;
         case 1:
             //软触发
-            CameraSoftTrigger(m_hCamera[m_isignalsource1]);
+            cout<<"cam2"<<endl;
+            ledcam.camuninit(1);
+            ledcam.caminit(m_scamname2,1,1);
+            ledcam.softtrigger(1);
+            //CameraSoftTrigger(m_hCamera[m_isignalsource1]);
             break;
 
         }
@@ -639,7 +552,8 @@ void MainWindow::on_pushButton_save_clicked()
         /*文本输出流，用于保存数据*/
         QTextStream out(&ExpandData);
 
-        m_ledc.ledsave(out);
+        ledc.ledsave(out);
+        savecam(out);
         ExpandData.close();
     }
 }
@@ -660,10 +574,17 @@ void MainWindow::on_pushButton_load_clicked()
         /*文本输出流，用于保存数据*/
 
         QTextStream in(&ExpandData);
-        m_ledc.ledload(in);
+        ledc.ledload(in);
+        loadcam(in);
         ExpandData.close();
     }
     showparam();
+    if(m_isignalsource1==1&&m_isignalsource2==1){
+//        ledcam.camuninit(0);
+//        ledcam.caminit(m_scamname1,0,1);
+//        ledcam.camuninit(1);
+//        ledcam.caminit(m_scamname2,1,1);
+    }
 }
 
 void MainWindow::on_pushButton_2_clicked()
@@ -678,7 +599,30 @@ void MainWindow::on_pushButton_2_clicked()
     {
         /*文本输出流，用于保存数据*/
         QTextStream out(&ExpandData);
-        m_ledc.ledsave(out);
+        ledc.ledsave(out);
         ExpandData.close();
+    }
+}
+
+void MainWindow::on_pushButton_3_clicked()
+{
+    QMessageBox::StandardButton res=QMessageBox::question(this,QString::fromLocal8Bit("提示"),QString::fromLocal8Bit("确认开始标定?\n如果确定，请放置一个工件于转动盘\n期间请勿触碰，标定结束会提醒"));
+    if(res!=16384){
+        return;
+    }
+    //初始化相机
+    if(m_isignalsource1==1&&m_isignalsource2==1){
+        //TODO:开启两个图像线程
+
+        if(conthread==NULL){
+            ledcam.camuninit(0);
+            ledcam.camuninit(1);
+            conthread=new controlthread(m_scamname1,m_scamname2);
+            connect(conthread,SIGNAL(sendui(bool,int)),this,SLOT(Recupdateui(bool,int)));
+            conthread->startthread1();
+            conthread->startthread2();
+        }
+    }else{
+        QMessageBox::information(this,QString::fromLocal8Bit("提示"),QString::fromLocal8Bit("存在信号源不是相机模式"));
     }
 }

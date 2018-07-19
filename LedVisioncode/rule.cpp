@@ -102,11 +102,10 @@ void rule::calgray()
     for(i=0;i<dealmat.cols;i++){
         int count=0;
         for(j=0;j<dealmat.rows;j++){
-            count+=dealmat.at<Vec3b>(j, i)[0];
+            count+=dealmat.at<uchar>(j, i);
         }
         int res=count/dealmat.rows;
         GrayHistogram[i]=res;
-        last=res;
     }
 }
 

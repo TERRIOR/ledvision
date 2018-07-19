@@ -1,5 +1,5 @@
 ﻿#include "ledclassify.h"
-
+ledclassify ledc;
 void ledclassify::initparam()
 {
     //初始化参数阈值
@@ -19,6 +19,49 @@ void ledclassify::initparam()
     m_footratio.setdownup(0,0.6);
     m_emptysamilar.setdownup(0.2,1);
     m_highsamilar.setdownup(0.25,1);
+}
+
+bool ledclassify::ledcalibration(const Mat &mat, int camnode, float scale)
+{
+    cout<<"calibrate"<<endl;
+    mytime timer;
+    timer.TimerStart();
+    bool res;
+    if(mat.empty())
+        return false;
+    switch (camnode) {
+    case 0:
+        res=calcalibration(mat,m_bcaminited1,scale,m_vibe1);
+        break;
+    case 1:
+        res=calcalibration(mat,m_bcaminited2,scale,m_vibe2);
+        break;
+    default:
+        break;
+    }
+    cout<<"time: "<<timer.TimerFinish()<<endl;
+    return res;
+}
+
+bool ledclassify::calcalibration(const Mat &mat, bool &inited, float scale, ViBe_BGS &Vibe_Bgs)
+{
+    Mat gray;
+    cvtColor(mat,gray,CV_RGBA2GRAY);
+    scalemat(gray,scale);
+    if(!inited){
+        Vibe_Bgs.init(gray);
+        Vibe_Bgs.processFirstFrame(gray);
+        cout << " Training ViBe complete!" << endl;
+        inited=true;
+        return false;
+    }
+    Vibe_Bgs.testAndUpdate(gray);
+    Mat mask = Vibe_Bgs.getMask();
+    int mask_area = countNonZero(mask);
+    cout<<"area:"<<mask_area<<endl;
+    if(mask_area<2000)
+        return false;
+    return true;
 }
 void ledclassify::getroi(Mat &ledmat,Rect *rcV,Mat *underV){
     double centerx=ledmat.cols/2;
@@ -41,22 +84,22 @@ void ledclassify::getroi(Mat &ledmat,Rect *rcV,Mat *underV){
         underV[i]=ledmat(rcV[i]);
     }
 }
-bool ledclassify::calback(Mat mat_b,float scale){
+bool ledclassify::calback(const Mat &mat_b,float scale){
     //TODO:添加背面处理代码
     Mat ledmat;
-    scalemat(mat_b, scale);
-    cvtColor(mat_b, mat_b, CV_RGBA2RGB);
-    getimgroi(mat_b, 0.9);   //*
+    //mat_b.copyTo(ledmat);
+    cvtColor(mat_b, ledmat, CV_RGBA2GRAY);
+    scalemat(ledmat, scale);
+    getimgroi(ledmat, 0.9);   //*
     Mat image;
-    cvtColor(mat_b, image, CV_RGBA2GRAY);
-    blur(image, image, Size(5, 5)); //*
+    //cvtColor(ledmat, image, CV_RGBA2GRAY);
+    blur(ledmat, image, Size(5, 5)); //*
     threshold(image, image, 200, 255, THRESH_BINARY_INV);//*
     Mat element = getStructuringElement(MORPH_RECT, Size(15, 15));//*
     morphologyEx(image, image, MORPH_CLOSE, element);
     vector<vector<Point>> contours;
     vector<Vec4i> hierarcy;
-    Mat dstImg;
-    mat_b.copyTo(dstImg);
+
     //CV_RETR_EXTERNAL:只检测多连通区域的外部轮廓
     findContours(image, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
     vector<RotatedRect> box(contours.size()); //定义最小外接矩形集合
@@ -80,7 +123,7 @@ bool ledclassify::calback(Mat mat_b,float scale){
         int line2 = sqrt((rect[3].y-rect[0].y)*(rect[3].y-rect[0].y)+(rect[3].x-rect[0].x)*(rect[3].x-rect[0].x));
         int x=line2;
         int y=line1;
-        imrotate(dstImg, ledmat, angle+90, box[i].center);//旋转
+        imrotate(ledmat, ledmat, angle+90, box[i].center);//旋转
         //cv::circle(dstImg, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);  //绘制最小外接矩形的中心点
         ledmat=ledmat(Rect(box[i].center.x-x/2, box[i].center.y-y/2, x, y));
         break;
@@ -98,10 +141,9 @@ bool ledclassify::calback(Mat mat_b,float scale){
     Rect rcV[4];
     Mat underV[4];
     Mat image1;
-    cvtColor(ledmat, image1, CV_RGBA2GRAY);
+    //cvtColor(ledmat, image1, CV_RGBA2GRAY);
+    ledmat.copyTo(image1);
     getroi(image1,rcV,underV);
-    //imshow("underV0", underV[0]); imshow("underV1", underV[1]);
-    //imshow("underV2", underV[2]); imshow("underV3", underV[3]);
 #if 0
     //绘制纵向ROI矩形
     cv::rectangle(ledmat, rcV[0], Scalar(0, 0, 255), 1, 1, 0);
@@ -171,7 +213,6 @@ bool ledclassify::calcornor(Mat &cornormat,Rect &bd){
     //CV_RETR_EXTERNAL:只检测多连通区域的外部轮廓
 
     findContours(cornormat, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
-
     //vector<Rect> box(contours.size()); //定义最小外接矩形集合
     if (contours.size() == 0||contours.size()>10)
     {
@@ -199,6 +240,9 @@ bool ledclassify::ledback(Mat &ledmat,float scale)
     cout<<"back"<<endl;
     mytime timer;
     timer.TimerStart();
+    if(ledmat.empty()){
+        return false;
+    }
     bool res = calback(ledmat,scale);
     cout<<"time: "<<timer.TimerFinish()<<endl;
     return res;
@@ -247,7 +291,6 @@ void ledclassify::ledsave(QTextStream &out)
     saveparam(out,m_footratio);
     saveparam(out,m_emptysamilar);
     saveparam(out,m_highsamilar);
-
 }
 
 
@@ -255,19 +298,18 @@ ledclassify::ledclassify()
 {
     initparam();
 }
-bool ledclassify::calfront(Mat &mat,float scale){
+bool ledclassify::calfront(const Mat &mat,float scale){
     Mat ledmat;
     Mat ledmat2;
     vector<Point> vecp;
 
     Mat image,scale_mat;
-    mat.copyTo(scale_mat);
+    cvtColor(mat , scale_mat , CV_RGBA2GRAY);
     //TODO:修改缩小比例，图像金字塔参数
     scalemat(scale_mat,scale);
-    cvtColor(scale_mat , scale_mat , CV_RGBA2RGB);
     getimgroi(scale_mat,0.6);
-
-    cvtColor(scale_mat , image , CV_RGBA2GRAY);
+    scale_mat.copyTo(image);
+    //cvtColor(scale_mat , image , CV_RGBA2GRAY);
     blur(image,image,Size(10*scale,10*scale));
     //TODO:注意阈值，可考虑使用OTSU
     threshold(image,image,200,255,THRESH_BINARY_INV);
@@ -373,16 +415,16 @@ bool ledclassify::calfront(Mat &mat,float scale){
     //cout<<" radius :"<<r<<endl;
     vecp.clear();
     /*同时显示多图像*/
-    vector<Mat> vecmat;
-    vecmat.push_back(*rule1.getGradhisMat());
-    vecmat.push_back(*rule2.getGradhisMat());
-    vecmat.push_back(*rule3.getGradhisMat());
-    vecmat.push_back(*rule4.getGradhisMat());
-    vecmat.push_back(*rule1.getGrayhisMat());
-    vecmat.push_back(*rule2.getGrayhisMat());
-    vecmat.push_back(*rule3.getGrayhisMat());
-    vecmat.push_back(*rule4.getGrayhisMat());
-    //imshowMany("his",vecmat);
+//    vector<Mat> vecmat;
+//    vecmat.push_back(*rule1.getGradhisMat());
+//    vecmat.push_back(*rule2.getGradhisMat());
+//    vecmat.push_back(*rule3.getGradhisMat());
+//    vecmat.push_back(*rule4.getGradhisMat());
+//    vecmat.push_back(*rule1.getGrayhisMat());
+//    vecmat.push_back(*rule2.getGrayhisMat());
+//    vecmat.push_back(*rule3.getGrayhisMat());
+//    vecmat.push_back(*rule4.getGrayhisMat());
+//    imshowMany("his",vecmat);
     //梯度图最大值
     int max=(rule1.getMax()+rule2.getMax()+rule3.getMax()+rule4.getMax())/4;
     m_gradmax.setNow(max);
@@ -415,8 +457,6 @@ bool ledclassify::calfront(Mat &mat,float scale){
     }
     //第一步正面成功
     //TODO:可能需要固定大小，即是限定图像的尺寸大小，调用resize
-    cvtColor(ledmat2, ledmat2, CV_BGR2GRAY);
-
     //	Mat mask;
     Mat circleRegion;
     equalizeHist(ledmat2, ledmat2);
@@ -484,6 +524,9 @@ bool ledclassify::ledfront(Mat &mat,float scale)
     cout<<"front"<<endl;
     mytime timer;
     timer.TimerStart();
+    if(mat.empty()){
+        return false;
+    }
     bool res=calfront(mat,scale);
     cout<<"time: "<<timer.TimerFinish()<<endl;
     return res;

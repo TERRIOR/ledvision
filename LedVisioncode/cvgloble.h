@@ -9,6 +9,7 @@
 #include <string>
 #include <iostream>
 #include <QImage>
+#include "mytime.h"
 
 using namespace std;
 using namespace cv;

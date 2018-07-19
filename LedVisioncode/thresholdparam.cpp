@@ -21,7 +21,7 @@ bool thresholdparam::inrange()
     if(m_now>m_down&&m_now<m_up){
         return true;
     }else{
-        cout<<"fail"<<endl;
+        //cout<<"fail"<<endl;
         showallparam();
         return false;
     }

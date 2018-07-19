@@ -1,7 +1,20 @@
 ﻿#include "cvgloble.h"
 
 void scalemat(Mat &mat,float scale){
-    resize(mat,mat,Size(mat.cols*scale,mat.rows*scale),0,0,INTER_LINEAR);
+    if(scale==0.5){
+//        Mat mat1,mat2;
+//        mytime time1;
+//        time1.TimerStart();
+//        resize(mat,mat2,Size(mat.cols*scale,mat.rows*scale),0,0,INTER_LINEAR);
+//        cout<<"pyr:"<<time1.TimerFinish()<<endl;
+//        time1.TimerStart();
+//        pyrDown( mat, mat1, Size( mat.cols*scale, mat.rows*scale ) );
+//        cout<<"resize:"<<time1.TimerFinish()<<endl;
+        resize(mat,mat,Size(mat.cols*scale,mat.rows*scale),0,0,CV_INTER_AREA);
+    }
+    else{
+        resize(mat,mat,Size(mat.cols*scale,mat.rows*scale),0,0,CV_INTER_AREA);
+    }
 
 }
 void getimgroi(Mat& mat,const float scale){

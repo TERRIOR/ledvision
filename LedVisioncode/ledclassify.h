@@ -20,6 +20,7 @@
 #include "mytime.h"
 #include "qgloble.h"
 #include <QObject>
+#include "Vibe.h"
 using namespace std;
 using namespace cv;
 enum error_type{
@@ -33,17 +34,13 @@ enum error_type{
     errorotherback,
     returndeal
 };
+
 class ledclassify: public QObject
 {
     Q_OBJECT
 
 public:
     ledclassify();
-    bool ledfront(Mat &ledmat,float scale=0.5);
-    bool ledback(Mat &ledmat,float scale=0.5);
-    void ledload(QTextStream &in);
-    void ledsave(QTextStream &out);
-    void initparam();
     thresholdparam m_width;
     thresholdparam m_hight;
     thresholdparam m_ratio;
@@ -59,8 +56,15 @@ public:
     thresholdparam m_emptysamilar;
     thresholdparam m_fmthresh;
     thresholdparam m_fmcount;
-    bool calfront(Mat &mat, float scale);
-    bool calback(Mat ledmat, float scale);
+    bool ledfront(Mat &ledmat,float scale=0.5);
+    bool ledback(Mat &ledmat,float scale=0.5);
+    void ledload(QTextStream &in);
+    void ledsave(QTextStream &out);
+    void initparam();
+    bool ledcalibration(const Mat &mat,int camnode,float scale=0.5);
+    bool calcalibration(const Mat &mat,bool &inited,float scale,ViBe_BGS &Vibe_Bgs);
+    bool calfront(const Mat &mat, float scale);
+    bool calback(const Mat &ledmat, float scale);
     void getroi(Mat &ledmat, Rect *rcV,Mat *underV);
     bool calcornor(Mat &cornormat, Rect &bd);
     void saveparam(QTextStream &out, const thresholdparam &param);
@@ -89,9 +93,13 @@ signals:
      */
     void senderror(int);
 private:
+    ViBe_BGS m_vibe1;
+    ViBe_BGS m_vibe2;
     bool m_front_jiao;
     bool m_front_ya;
 
+    bool m_bcaminited1=false;
+    bool m_bcaminited2=false;
 };
-
+extern ledclassify ledc;
 #endif // LEDCLASSIFY_H

@@ -20,7 +20,11 @@ SOURCES += main.cpp\
     qgloble.cpp \
     ledclassify.cpp \
     thresholdparam.cpp \
-    signaldialog.cpp
+    signaldialog.cpp \
+    controlthread.cpp \
+    activecamworker.cpp \
+    ledcamera.cpp \
+    Vibe.cpp
 
 HEADERS  += mainwindow.h \
     rule.h \
@@ -29,7 +33,11 @@ HEADERS  += mainwindow.h \
     qgloble.h \
     ledclassify.h \
     thresholdparam.h \
-    signaldialog.h
+    signaldialog.h \
+    controlthread.h \
+    activecamworker.h \
+    ledcamera.h \
+    Vibe.h
 
 FORMS    += mainwindow.ui \
     signaldialog.ui

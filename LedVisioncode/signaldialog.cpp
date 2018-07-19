@@ -13,8 +13,9 @@ signalDialog::signalDialog(int i, int j):ui(new Ui::signalDialog),m_iwhere(i),m_
     QWidget::setAttribute(Qt::WA_DeleteOnClose);
     initform();
     btngroup1 = new QButtonGroup(this);
-    btngroup1->addButton(ui->radioButton_cam,0);
     btngroup1->addButton(ui->radioButton_file,1);
+    btngroup1->addButton(ui->radioButton_cam,0);
+
 
     btngroup2 = new QButtonGroup(this);
     btngroup2->addButton(ui->radioButton_cam_2,0);
